@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(composer create-project *)",
+      "Bash(php artisan *)",
+      "Bash(php -m)",
+      "Bash(apt-get install *)",
+      "Bash(sudo apt-get install -y php8.5-sqlite3)",
+      "Bash(php -r \"echo phpinfo\\(\\);\")",
+      "Bash(php -r \"var_dump\\(extension_loaded\\('pdo_sqlite'\\)\\);\")",
+      "Bash(php -r \"var_dump\\(extension_loaded\\('pdo_sqlite'\\), extension_loaded\\('sqlite3'\\)\\);\")",
+      "Bash(php --ini)",
+      "Read(//etc/php/**)",
+      "Read(//usr/lib/php/**)",
+      "Bash(ls /etc/php/8.5/cli/conf.d/ | head -20 && cat /home/cautnew/.config/herd-lite/bin/php.ini | head -20)",
+      "Read(//home/cautnew/.config/herd-lite/bin/**)"
+    ]
+  }
+}
