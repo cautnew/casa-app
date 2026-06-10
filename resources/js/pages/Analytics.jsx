@@ -24,6 +24,13 @@ const COLOR_HEX = {
 const FALLBACK_COLORS = ["#1c1917", "#78716c", "#57534e", "#a8a29e", "#d6d3d1", "#292524"];
 const memberHex = (m, idx) => COLOR_HEX[m.color] ?? FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
 
+// ── Cores das categorias nos gráficos empilhados ─────────────────────────────
+const CATEGORY_COLORS = [
+  "#1c1917", "#78716c", "#a8a29e", "#fb7185", "#38bdf8",
+  "#34d399", "#fbbf24", "#a78bfa", "#2dd4bf", "#f97316", "#0ea5e9", "#d6d3d1",
+];
+const categoryHex = (idx) => CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+
 // ── "Jan/25" a partir de "YYYY-MM" ───────────────────────────────────────────
 const MONTH_NAMES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const fmtMonthKey = (k) => { const [y, m] = k.split("-"); return `${MONTH_NAMES[+m - 1]}/${y.slice(2)}`; };
@@ -156,6 +163,50 @@ export function Analytics() {
       .sort((a, b) => b.total - a.total);
   }, [purchases, bills]);
 
+  // ── Gastos por categoria, mensalizados ────────────────────────────────────
+  const allCategories = useMemo(() => categoryData.map((c) => c.category), [categoryData]);
+
+  const categoryMonthlyData = useMemo(() => {
+    const map = Object.fromEntries(
+      activeMonths.map((m) => [
+        m,
+        { label: fmtMonthKey(m), ...Object.fromEntries(allCategories.map((c) => [c, 0])) },
+      ]),
+    );
+    purchases.forEach((p) => {
+      const mk = monthKey(p.date);
+      if (!map[mk]) return;
+      (p.items ?? []).forEach((item) => {
+        const c = item.category ?? "Outros";
+        map[mk][c] = (map[mk][c] ?? 0) + (item.totalPrice ?? 0);
+      });
+    });
+    bills.forEach((b) => {
+      const mk = monthKey(b.dueDate);
+      if (!map[mk]) return;
+      const c = b.category ?? "Outros";
+      map[mk][c] = (map[mk][c] ?? 0) + b.amount;
+    });
+    return activeMonths.map((m) => map[m]);
+  }, [activeMonths, purchases, bills, allCategories]);
+
+  // ── Total gasto por integrante no período ─────────────────────────────────
+  const memberTotals = useMemo(() => {
+    const mc = state.members.length || 1;
+    const totals = Object.fromEntries(state.members.map((m) => [m.id, 0]));
+    const add = (mp, total) => {
+      if (mp?.length > 0) {
+        mp.forEach((p) => { if (p.memberId in totals) totals[p.memberId] += p.amount; });
+      } else {
+        state.members.forEach((m) => { totals[m.id] += total / mc; });
+      }
+    };
+    purchases.forEach((p) => add(p.memberPayments, p.total));
+    bills.filter((b) => b.status === "paga").forEach((b) => add(b.memberPayments, b.amount));
+    return state.members.map((m, idx) => ({ ...m, total: totals[m.id], hex: memberHex(m, idx) }));
+  }, [purchases, bills, state.members]);
+  const maxMemberTotal = Math.max(1, ...memberTotals.map((m) => m.total));
+
   // ── Contas mais caras ─────────────────────────────────────────────────────
   const topBills = useMemo(
     () => [...bills].sort((a, b) => b.amount - a.amount).slice(0, 10),
@@ -277,11 +328,57 @@ export function Analytics() {
         </div>
       </Card>
 
+      {/* ── Gastos por categoria, mês a mês ───────────────────────────────── */}
+      <Card className="mt-3 p-5">
+        <h3 className="text-sm font-semibold text-stone-800">Gastos por categoria, por mês do período</h3>
+        <p className="text-xs text-stone-400 mt-0.5">Itens de compras + contas, agrupados por categoria · empilhados</p>
+        {categoryMonthlyData.length > 0 && allCategories.length > 0 ? (
+          <div className="mt-4 h-64 min-w-0 overflow-hidden">
+            <ResponsiveContainer width="99%" height="100%">
+              <BarChart data={categoryMonthlyData} margin={{ left: -18, right: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e5e4" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11, fill: "#78716c" }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval={xInterval}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "#a8a29e" }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => v >= 1000 ? `R$${(v / 1000).toFixed(0)}k` : `R$${v}`}
+                />
+                <Tooltip
+                  formatter={(v, name) => [formatBRL(v), name]}
+                  cursor={{ fill: "#f5f5f4" }}
+                  contentStyle={TOOLTIP_STYLE}
+                />
+                <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+                {allCategories.map((c, idx) => (
+                  <Bar
+                    key={c}
+                    dataKey={c}
+                    stackId="cat"
+                    fill={categoryHex(idx)}
+                    maxBarSize={barSize}
+                    radius={idx === allCategories.length - 1 ? [6, 6, 0, 0] : undefined}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <p className="py-10 text-center text-xs text-stone-400">Sem dados no período</p>
+        )}
+      </Card>
+
       {/* ── Categorias + Contribuição por integrante ──────────────────────── */}
       <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
 
         <Card className="p-5">
-          <h3 className="text-sm font-semibold text-stone-800">Gastos por categoria</h3>
+          <h3 className="text-sm font-semibold text-stone-800">Gastos por categoria, total do período</h3>
           <p className="text-xs text-stone-400 mt-0.5">Itens de compras + contas da casa</p>
           {categoryData.length > 0 ? (
             <div className="mt-4 space-y-3">
@@ -317,6 +414,29 @@ export function Analytics() {
             Compras + contas pagas · rateio real ou igualitário
           </p>
           {state.members.length > 0 ? (
+            <>
+            <div className="mt-4 space-y-2">
+              {memberTotals.map((m) => {
+                const pct = (m.total / maxMemberTotal) * 100;
+                return (
+                  <div key={m.id}>
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-xs font-medium text-stone-700">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: m.hex }} />
+                        {m.name}
+                      </span>
+                      <span className="text-xs text-stone-500">{formatBRL(m.total)}</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-stone-100">
+                      <div
+                        className="h-1.5 rounded-full transition-all duration-300"
+                        style={{ width: `${pct}%`, backgroundColor: m.hex }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
             <div className="mt-4 h-64 min-w-0 overflow-hidden">
               <ResponsiveContainer width="99%" height="100%">
                 <BarChart data={memberMonthlyData} margin={{ left: -18, right: 8 }}>
@@ -353,6 +473,7 @@ export function Analytics() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            </>
           ) : (
             <p className="py-10 text-center text-xs text-stone-400">Nenhum integrante cadastrado</p>
           )}
