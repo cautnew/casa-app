@@ -19,9 +19,13 @@ export function ShoppingList() {
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", category: "Alimentos", desiredQty: 1, unit: "un" });
   const [finalize, setFinalize] = useState(null);
+  const [categoryFilter, setCategoryFilter] = useState("");
 
-  const bought = state.shoppingList.filter((s) => s.bought);
-  const pending = state.shoppingList.filter((s) => !s.bought);
+  const filtered = categoryFilter
+    ? state.shoppingList.filter((s) => s.category === categoryFilter)
+    : state.shoppingList;
+  const bought = filtered.filter((s) => s.bought);
+  const pending = filtered.filter((s) => !s.bought);
 
   const add = () => {
     if (!form.name.trim()) return toast("Informe o nome", "error");
@@ -87,6 +91,12 @@ export function ShoppingList() {
         subtitle="Itens marcados e adições manuais"
         action={
           <div className="flex gap-2">
+            <div className="w-44">
+              <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+                <option value="">Todas as categorias</option>
+                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+              </Select>
+            </div>
             <Button variant="outline" onClick={() => setAdding(true)}>
               <FontAwesomeIcon icon={faPlus} style={{ height: "1rem" }} /> Item
             </Button>
