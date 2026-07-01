@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToHouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Bill extends Model
 {
+    use BelongsToHouse;
+
     protected $fillable = [
         'description', 'category', 'amount', 'due_date',
         'status', 'reference_month', 'note',

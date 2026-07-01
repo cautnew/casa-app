@@ -1,7 +1,10 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { StoreProvider } from "./store/StoreContext.jsx";
+import { useAuth } from "./store/AuthContext.jsx";
 import { ToastProvider } from "./hooks/useToast.jsx";
 import { Layout } from "./components/layout/Layout.jsx";
+import { Login } from "./pages/Login.jsx";
+import { Register } from "./pages/Register.jsx";
 import { Dashboard } from "./pages/Dashboard.jsx";
 import { Members } from "./pages/Members.jsx";
 import { Purchases } from "./pages/Purchases.jsx";
@@ -11,23 +14,53 @@ import { Prices } from "./pages/Prices.jsx";
 import { Bills } from "./pages/Bills.jsx";
 import { Analytics } from "./pages/Analytics.jsx";
 
+function RequireAuth({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-stone-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-900 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  }
+
+  return children;
+}
+
 export default function App() {
   return (
-    <StoreProvider>
-      <ToastProvider>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="integrantes" element={<Members />} />
-            <Route path="compras" element={<Purchases />} />
-            <Route path="inventario" element={<Inventory />} />
-            <Route path="lista" element={<ShoppingList />} />
-            <Route path="precos" element={<Prices />} />
-            <Route path="contas" element={<Bills />} />
-            <Route path="analises" element={<Analytics />} />
-          </Route>
-        </Routes>
-      </ToastProvider>
-    </StoreProvider>
+    <ToastProvider>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/registro" element={<Register />} />
+        <Route
+          path="/*"
+          element={
+            <RequireAuth>
+              <StoreProvider>
+                <Routes>
+                  <Route element={<Layout />}>
+                    <Route index element={<Dashboard />} />
+                    <Route path="integrantes" element={<Members />} />
+                    <Route path="compras" element={<Purchases />} />
+                    <Route path="inventario" element={<Inventory />} />
+                    <Route path="lista" element={<ShoppingList />} />
+                    <Route path="precos" element={<Prices />} />
+                    <Route path="contas" element={<Bills />} />
+                    <Route path="analises" element={<Analytics />} />
+                  </Route>
+                </Routes>
+              </StoreProvider>
+            </RequireAuth>
+          }
+        />
+      </Routes>
+    </ToastProvider>
   );
 }

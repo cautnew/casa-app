@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToHouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InventoryItem extends Model
 {
+    use BelongsToHouse;
+
     protected $fillable = [
         'name', 'category', 'quantity', 'unit',
         'min_stock', 'in_next_list', 'last_price', 'avg_price',

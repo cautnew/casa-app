@@ -4,13 +4,16 @@ import { BrowserRouter } from "react-router-dom";
 import { config } from "@fortawesome/fontawesome-svg-core";
 import "@fortawesome/fontawesome-svg-core/styles.css";
 import App from "./App.jsx";
+import { AuthProvider } from "./store/AuthContext.jsx";
 
 config.autoAddCss = false;
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

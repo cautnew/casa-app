@@ -1,26 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { apiFetch } from "../utils/api.js";
 
 const StoreContext = createContext(null);
-
-const BASE = "/api";
-
-async function apiFetch(method, path, body) {
-  const headers = { Accept: "application/json" };
-  if (body) headers["Content-Type"] = "application/json";
-
-  const r = await fetch(`${BASE}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  if (!r.ok) {
-    const msg = await r.text().catch(() => `HTTP ${r.status}`);
-    throw new Error(msg || `HTTP ${r.status}`);
-  }
-
-  return r.status === 204 ? null : r.json();
-}
 
 const EMPTY = { members: [], purchases: [], inventory: [], shoppingList: [], bills: [] };
 

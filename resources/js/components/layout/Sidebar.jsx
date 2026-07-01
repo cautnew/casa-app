@@ -1,10 +1,13 @@
 import { NavLink } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faDollarSign } from "@fortawesome/free-solid-svg-icons";
+import { faDollarSign, faRightFromBracket } from "@fortawesome/free-solid-svg-icons";
 import { NAV } from "./nav.js";
+import { useAuth } from "../../store/AuthContext.jsx";
 
 /** Navegação lateral fixa (desktop). */
 export function Sidebar() {
+  const { user, logout } = useAuth();
+
   return (
     <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-stone-200 bg-white px-4 py-6 lg:flex">
       <div className="mb-8 flex items-center gap-2.5 px-2">
@@ -34,7 +37,16 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <p className="px-3 text-xs text-stone-300">Da nossa casa ❤️</p>
+      <div className="flex items-center justify-between gap-2 px-3">
+        <p className="truncate text-xs font-medium text-stone-500">{user?.name}</p>
+        <button
+          onClick={logout}
+          title="Sair"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+        >
+          <FontAwesomeIcon icon={faRightFromBracket} style={{ height: "1rem" }} />
+        </button>
+      </div>
     </aside>
   );
 }
