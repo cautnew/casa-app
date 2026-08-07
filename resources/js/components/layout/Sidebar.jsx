@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faDollarSign, faRightFromBracket } from "@fortawesome/free-solid-svg-icons";
+import { faDollarSign, faRightFromBracket, faGear } from "@fortawesome/free-solid-svg-icons";
 import { NAV } from "./nav.js";
 import { useAuth } from "../../store/AuthContext.jsx";
 
@@ -39,13 +39,22 @@ export function Sidebar() {
 
       <div className="flex items-center justify-between gap-2 px-3">
         <p className="truncate text-xs font-medium text-stone-500">{user?.name}</p>
-        <button
-          onClick={logout}
-          title="Sair"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
-        >
-          <FontAwesomeIcon icon={faRightFromBracket} style={{ height: "1rem" }} />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <NavLink
+            to="/configuracoes"
+            title="Configurações"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+          >
+            <FontAwesomeIcon icon={faGear} style={{ height: "1rem" }} />
+          </NavLink>
+          <button
+            onClick={logout}
+            title="Sair"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+          >
+            <FontAwesomeIcon icon={faRightFromBracket} style={{ height: "1rem" }} />
+          </button>
+        </div>
       </div>
     </aside>
   );

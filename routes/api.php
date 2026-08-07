@@ -16,6 +16,7 @@ Route::middleware('web')->group(function () {
     Route::middleware('auth')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
+        Route::put('/account', [AuthController::class, 'update']);
 
         Route::get('/state', [StateController::class, 'index']);
 

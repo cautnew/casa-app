@@ -13,6 +13,7 @@ import { ShoppingList } from "./pages/ShoppingList.jsx";
 import { Prices } from "./pages/Prices.jsx";
 import { Bills } from "./pages/Bills.jsx";
 import { Analytics } from "./pages/Analytics.jsx";
+import { Settings } from "./pages/Settings.jsx";
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -54,6 +55,7 @@ export default function App() {
                     <Route path="precos" element={<Prices />} />
                     <Route path="contas" element={<Bills />} />
                     <Route path="analises" element={<Analytics />} />
+                    <Route path="configuracoes" element={<Settings />} />
                   </Route>
                 </Routes>
               </StoreProvider>

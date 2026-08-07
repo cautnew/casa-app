@@ -6,6 +6,7 @@ import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Field, Input } from "../components/ui/Input.jsx";
 import { useAuth } from "../store/AuthContext.jsx";
+import { slugify } from "../utils/format.js";
 
 const EMPTY = { name: "", username: "", email: "", password: "" };
 
@@ -67,7 +68,7 @@ export function Register() {
               id="username"
               autoComplete="username"
               value={form.username}
-              onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, username: slugify(e.target.value) }))}
               required
             />
             {fieldError("username") && <p className="text-xs text-rose-600">{fieldError("username")}</p>}

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faXmark, faDollarSign, faRightFromBracket } from "@fortawesome/free-solid-svg-icons";
+import { faXmark, faDollarSign, faRightFromBracket, faGear } from "@fortawesome/free-solid-svg-icons";
 import { NAV } from "./nav.js";
 import { useAuth } from "../../store/AuthContext.jsx";
 
@@ -79,13 +79,22 @@ export function MobileDrawer({ open, onClose }) {
 
         <div className="flex shrink-0 items-center justify-between gap-2 border-t border-stone-100 px-4 py-3">
           <p className="truncate text-xs font-medium text-stone-500">{user?.name}</p>
-          <button
-            onClick={logout}
-            title="Sair"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
-          >
-            <FontAwesomeIcon icon={faRightFromBracket} style={{ height: "1.125rem" }} />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <NavLink
+              to="/configuracoes"
+              title="Configurações"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+            >
+              <FontAwesomeIcon icon={faGear} style={{ height: "1.125rem" }} />
+            </NavLink>
+            <button
+              onClick={logout}
+              title="Sair"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+            >
+              <FontAwesomeIcon icon={faRightFromBracket} style={{ height: "1.125rem" }} />
+            </button>
+          </div>
         </div>
       </aside>
     </div>
