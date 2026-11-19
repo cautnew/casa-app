@@ -10,7 +10,15 @@ class Purchase extends Model
 {
     use BelongsToHouse;
 
-    protected $fillable = ['date', 'store', 'note', 'total', 'per_member'];
+    public const SOURCE_MANUAL = 'manual';
+    public const SOURCE_LIST   = 'list';
+    public const SOURCE_NFCE   = 'nfce';
+
+    protected $fillable = [
+        'date', 'store', 'store_cnpj', 'note', 'source',
+        'nfce_access_key', 'nfce_url',
+        'total', 'subtotal', 'discount', 'payment_method', 'per_member',
+    ];
 
     public function items(): HasMany
     {

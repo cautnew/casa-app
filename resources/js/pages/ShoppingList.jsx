@@ -11,7 +11,9 @@ import { Button } from "../components/ui/Button.jsx";
 import { Field, Input, Select } from "../components/ui/Input.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { EmptyState } from "../components/ui/EmptyState.jsx";
-import { MemberPaymentsInput } from "./Purchases.jsx";
+import { MemberPaymentsInput } from "../components/shared/MemberPaymentsInput.jsx";
+import { PurchaseMethodChooser } from "../components/shared/PurchaseMethodChooser.jsx";
+import { NfceImportModal } from "../components/nfce/NfceImportModal.jsx";
 
 export function ShoppingList() {
   const { state, dispatch } = useStore();
@@ -20,6 +22,8 @@ export function ShoppingList() {
   const [form, setForm] = useState({ name: "", category: "Alimentos", desiredQty: 1, unit: "un" });
   const [finalize, setFinalize] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [choosing, setChoosing] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const filtered = categoryFilter
     ? state.shoppingList.filter((s) => s.category === categoryFilter)
@@ -36,6 +40,7 @@ export function ShoppingList() {
   };
 
   const openFinalize = () => {
+    setChoosing(false);
     if (!bought.length) return toast("Marque itens como comprados primeiro", "error");
     setFinalize({
       store: "",
@@ -100,7 +105,7 @@ export function ShoppingList() {
             <Button variant="outline" onClick={() => setAdding(true)}>
               <FontAwesomeIcon icon={faPlus} style={{ height: "1rem" }} /> Item
             </Button>
-            <Button onClick={openFinalize}>
+            <Button onClick={() => setChoosing(true)}>
               <FontAwesomeIcon icon={faCheck} style={{ height: "1rem" }} /> Finalizar compra
             </Button>
           </div>
@@ -127,6 +132,18 @@ export function ShoppingList() {
           </Card>
         </div>
       )}
+
+      <PurchaseMethodChooser
+        open={choosing}
+        onClose={() => setChoosing(false)}
+        onNfce={() => { setChoosing(false); setImporting(true); }}
+        onManual={openFinalize}
+        manualHint={bought.length
+          ? `Informe a loja e o preço dos ${bought.length} ${bought.length === 1 ? "item marcado" : "itens marcados"}.`
+          : "Marque os itens comprados na lista e informe o preço de cada um."}
+      />
+
+      <NfceImportModal open={importing} onClose={() => setImporting(false)} />
 
       <Modal
         open={adding}

@@ -7,7 +7,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PurchaseItem extends Model
 {
-    protected $fillable = ['purchase_id', 'name', 'category', 'quantity', 'unit', 'unit_price', 'total_price'];
+    protected $fillable = [
+        'purchase_id', 'name', 'original_name', 'category', 'quantity', 'unit',
+        'unit_price', 'total_price', 'original_unit_price', 'original_total_price',
+    ];
 
     public function purchase(): BelongsTo
     {

@@ -3,66 +3,30 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\InventoryItem;
-use App\Models\Member;
 use App\Models\Purchase;
-use App\Models\PurchaseMemberPayment;
-use App\Models\PriceHistory;
+use App\Services\PurchaseRecorder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class PurchaseController extends Controller
 {
+    public function __construct(private PurchaseRecorder $recorder) {}
+
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'date'                       => 'required|string',
-            'store'                      => 'required|string|max:150',
-            'note'                       => 'nullable|string',
-            'items'                      => 'required|array|min:1',
-            'items.*.name'               => 'required|string',
-            'items.*.category'           => 'required|string',
-            'items.*.quantity'           => 'required|numeric|min:0',
-            'items.*.unit'               => 'required|string',
-            'items.*.unitPrice'          => 'required|numeric|min:0',
-            'memberPayments'             => 'nullable|array',
-            'memberPayments.*.memberId'  => 'required|integer',
-            'memberPayments.*.amount'    => 'required|numeric|min:0',
-        ]);
+        $data = $request->validate($this->rules());
 
-        $memberCount = max(1, Member::count());
-
-        return DB::transaction(function () use ($data, $memberCount) {
-            $items = collect($data['items'])->map(fn ($i) => [
-                ...$i,
-                'totalPrice' => round($i['quantity'] * $i['unitPrice'], 4),
-            ]);
-
-            $total     = round($items->sum('totalPrice'), 2);
-            $perMember = round($total / $memberCount, 2);
-
-            $purchase = Purchase::create([
-                'date'       => $data['date'],
-                'store'      => $data['store'],
-                'note'       => $data['note'] ?? '',
-                'total'      => $total,
-                'per_member' => $perMember,
-            ]);
-
-            foreach ($items as $i) {
-                $purchase->items()->create([
-                    'name'        => $i['name'],
-                    'category'    => $i['category'],
-                    'quantity'    => $i['quantity'],
-                    'unit'        => $i['unit'],
-                    'unit_price'  => $i['unitPrice'],
-                    'total_price' => $i['totalPrice'],
-                ]);
-
-                $this->upsertInventory($i, $data['date'], $data['store']);
-            }
-
-            $this->saveMemberPayments($purchase->id, $data['memberPayments'] ?? []);
+        return DB::transaction(function () use ($data) {
+            $purchase = $this->recorder->record(
+                [
+                    'date'   => $data['date'],
+                    'store'  => $data['store'],
+                    'note'   => $data['note'] ?? '',
+                    'source' => Purchase::SOURCE_MANUAL,
+                ],
+                $this->mapItems($data['items']),
+                $data['memberPayments'] ?? [],
+            );
 
             return response()->json($purchase->load('items', 'memberPayments'), 201);
         });
@@ -70,53 +34,40 @@ class PurchaseController extends Controller
 
     public function update(Request $request, Purchase $purchase)
     {
-        $data = $request->validate([
-            'date'                       => 'required|string',
-            'store'                      => 'required|string|max:150',
-            'note'                       => 'nullable|string',
-            'items'                      => 'required|array|min:1',
-            'items.*.name'               => 'required|string',
-            'items.*.category'           => 'required|string',
-            'items.*.quantity'           => 'required|numeric|min:0',
-            'items.*.unit'               => 'required|string',
-            'items.*.unitPrice'          => 'required|numeric|min:0',
-            'memberPayments'             => 'nullable|array',
-            'memberPayments.*.memberId'  => 'required|integer',
-            'memberPayments.*.amount'    => 'required|numeric|min:0',
-        ]);
+        $data = $request->validate($this->rules());
 
-        $memberCount = max(1, Member::count());
-
-        return DB::transaction(function () use ($data, $purchase, $memberCount) {
-            $items = collect($data['items'])->map(fn ($i) => [
-                ...$i,
-                'totalPrice' => round($i['quantity'] * $i['unitPrice'], 4),
-            ]);
-
-            $total     = round($items->sum('totalPrice'), 2);
-            $perMember = round($total / $memberCount, 2);
+        return DB::transaction(function () use ($data, $purchase) {
+            $items = $this->mapItems($data['items']);
+            $total = round(collect($items)->sum('total_price'), 2);
 
             $purchase->update([
                 'date'       => $data['date'],
                 'store'      => $data['store'],
                 'note'       => $data['note'] ?? '',
                 'total'      => $total,
-                'per_member' => $perMember,
+                'per_member' => $this->recorder->perMember($total),
             ]);
+
+            // Preserva a descrição/valores originais da nota quando o item continua com o mesmo nome.
+            $originals = $purchase->items()->get()->keyBy(fn ($i) => mb_strtolower(trim($i->name)));
 
             $purchase->items()->delete();
             foreach ($items as $i) {
+                $orig = $originals->get(mb_strtolower(trim($i['name'])));
                 $purchase->items()->create([
-                    'name'        => $i['name'],
-                    'category'    => $i['category'],
-                    'quantity'    => $i['quantity'],
-                    'unit'        => $i['unit'],
-                    'unit_price'  => $i['unitPrice'],
-                    'total_price' => $i['totalPrice'],
+                    'name'                 => $i['name'],
+                    'category'             => $i['category'],
+                    'quantity'             => $i['quantity'],
+                    'unit'                 => $i['unit'],
+                    'unit_price'           => $i['unit_price'],
+                    'total_price'          => $i['total_price'],
+                    'original_name'        => $orig?->original_name,
+                    'original_unit_price'  => $orig?->original_unit_price,
+                    'original_total_price' => $orig?->original_total_price,
                 ]);
             }
 
-            $this->saveMemberPayments($purchase->id, $data['memberPayments'] ?? []);
+            $this->recorder->saveMemberPayments($purchase->id, $data['memberPayments'] ?? []);
 
             return response()->json($purchase->load('items', 'memberPayments'));
         });
@@ -129,52 +80,33 @@ class PurchaseController extends Controller
         return response()->noContent();
     }
 
-    private function saveMemberPayments(int $purchaseId, array $payments): void
+    private function rules(): array
     {
-        PurchaseMemberPayment::where('purchase_id', $purchaseId)->delete();
-        foreach ($payments as $p) {
-            PurchaseMemberPayment::create([
-                'purchase_id' => $purchaseId,
-                'member_id'   => $p['memberId'],
-                'amount'      => round($p['amount'], 2),
-            ]);
-        }
+        return [
+            'date'                       => 'required|string',
+            'store'                      => 'required|string|max:150',
+            'note'                       => 'nullable|string',
+            'items'                      => 'required|array|min:1',
+            'items.*.name'               => 'required|string',
+            'items.*.category'           => 'required|string',
+            'items.*.quantity'           => 'required|numeric|min:0',
+            'items.*.unit'               => 'required|string',
+            'items.*.unitPrice'          => 'required|numeric|min:0',
+            'memberPayments'             => 'nullable|array',
+            'memberPayments.*.memberId'  => 'required|integer',
+            'memberPayments.*.amount'    => 'required|numeric|min:0',
+        ];
     }
 
-    private function upsertInventory(array $item, string $date, string $store): void
+    private function mapItems(array $items): array
     {
-        $normName = mb_strtolower(trim($item['name']));
-        $unit     = $item['unit'];
-
-        $inv = InventoryItem::all()->first(
-            fn ($i) => mb_strtolower(trim($i->name)) === $normName && $i->unit === $unit
-        );
-
-        if ($inv === null) {
-            $inv = InventoryItem::create([
-                'name'        => $item['name'],
-                'category'    => $item['category'],
-                'quantity'    => $item['quantity'],
-                'unit'        => $unit,
-                'min_stock'   => max(1, round($item['quantity'] * 0.3)),
-                'in_next_list'=> false,
-                'last_price'  => $item['unitPrice'],
-                'avg_price'   => $item['unitPrice'],
-            ]);
-        } else {
-            $inv->quantity += $item['quantity'];
-        }
-
-        PriceHistory::create([
-            'inventory_item_id' => $inv->id,
-            'date'              => $date,
-            'price'             => $item['unitPrice'],
-            'store'             => $store,
-        ]);
-
-        $avg = PriceHistory::where('inventory_item_id', $inv->id)->avg('price');
-        $inv->last_price = $item['unitPrice'];
-        $inv->avg_price  = round($avg, 2);
-        $inv->save();
+        return array_map(fn ($i) => [
+            'name'        => $i['name'],
+            'category'    => $i['category'],
+            'quantity'    => $i['quantity'],
+            'unit'        => $i['unit'],
+            'unit_price'  => $i['unitPrice'],
+            'total_price' => round($i['quantity'] * $i['unitPrice'], 4),
+        ], $items);
     }
 }

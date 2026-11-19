@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlus, faTrash, faCartShopping, faUsers, faCalendar, faPencil } from "@fortawesome/free-solid-svg-icons";
+import { faPlus, faTrash, faCartShopping, faUsers, faCalendar, faPencil, faReceipt, faArrowUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
 import { useStore } from "../store/StoreContext.jsx";
 import { useToast } from "../hooks/useToast.jsx";
 import { useOpenNew } from "../hooks/useOpenNew.js";
@@ -16,65 +17,10 @@ import { Field, Input, Select, inputCls } from "../components/ui/Input.jsx";
 import { Modal, ConfirmDialog } from "../components/ui/Modal.jsx";
 import { EmptyState } from "../components/ui/EmptyState.jsx";
 import { SearchInput } from "../components/ui/SearchInput.jsx";
+import { MemberPaymentsInput } from "../components/shared/MemberPaymentsInput.jsx";
+import { NfceImportModal } from "../components/nfce/NfceImportModal.jsx";
 
 const emptyItem = () => ({ name: "", category: "Alimentos", quantity: 1, unit: "un", unitPrice: 0, totalPrice: 0 });
-
-/** Bloco reutilizável de entrada de pagamento por integrante. */
-export function MemberPaymentsInput({ members, payments, onChange, total }) {
-  const paid = payments.reduce((s, p) => s + (+p.amount || 0), 0);
-  const remaining = +(total - paid).toFixed(2);
-
-  const setAmount = (memberId, value) =>
-    onChange(payments.map((p) => (p.memberId === memberId ? { ...p, amount: value } : p)));
-
-  const distributeEqually = () => {
-    const each = +(total / members.length).toFixed(2);
-    onChange(payments.map((p, i) => ({
-      ...p,
-      amount: i < payments.length - 1 ? each : +(total - each * (payments.length - 1)).toFixed(2),
-    })));
-  };
-
-  return (
-    <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-semibold text-stone-600">Quanto cada um pagou</span>
-        <button type="button" onClick={distributeEqually} className="text-xs text-stone-400 underline hover:text-stone-700">
-          dividir igualmente
-        </button>
-      </div>
-      <div className="space-y-2">
-        {payments.map((p) => {
-          const member = members.find((m) => m.id === p.memberId);
-          return (
-            <div key={p.memberId} className="flex items-center gap-2">
-              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${member?.color ?? "bg-stone-400"}`}>
-                {member?.name[0] ?? "?"}
-              </span>
-              <span className="w-20 truncate text-sm text-stone-700">{member?.name}</span>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                className="flex-1"
-                placeholder="0,00"
-                value={p.amount}
-                onChange={(e) => setAmount(p.memberId, e.target.value)}
-              />
-            </div>
-          );
-        })}
-      </div>
-      <div className={`mt-2 text-right text-xs ${Math.abs(remaining) < 0.01 ? "text-emerald-600" : "text-amber-600"}`}>
-        {Math.abs(remaining) < 0.01
-          ? "Total conferido ✓"
-          : remaining > 0
-            ? `Faltam ${formatBRL(remaining)} para completar`
-            : `Excedido em ${formatBRL(-remaining)}`}
-      </div>
-    </div>
-  );
-}
 
 function initPayments(members) {
   return members.map((m) => ({ memberId: m.id, amount: "" }));
@@ -88,6 +34,9 @@ export function Purchases() {
   const [confirm, setConfirm] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
   const [query, setQuery] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const [highlightId, setHighlightId] = useState(null);
   const [sort, setSort] = useState("date");
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
@@ -111,6 +60,25 @@ export function Purchases() {
   useEffect(() => {
     if (openNew) { setModal(true); clearOpen(); }
   }, [openNew, clearOpen]);
+
+  // ?compra=ID (ex.: "Ver compra" na importação de NFC-e): ajusta o período, rola até a compra e a destaca.
+  useEffect(() => {
+    const id = Number(params.get("compra"));
+    if (!id) return;
+    const p = state.purchases.find((x) => x.id === id);
+    if (!p) return;
+    const d = new Date(p.date);
+    const first = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+    setDateFrom((cur) => (cur && cur <= p.date.slice(0, 10) ? cur : first.toISOString().slice(0, 10)));
+    setDateTo((cur) => (cur && cur >= p.date.slice(0, 10) ? cur : last.toISOString().slice(0, 10)));
+    setQuery("");
+    setHighlightId(id);
+    params.delete("compra");
+    setParams(params, { replace: true });
+    setTimeout(() => document.getElementById(`compra-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+    setTimeout(() => setHighlightId(null), 4000);
+  }, [params, setParams, state.purchases]);
 
   // Reinicializa payments apenas ao abrir nova compra (não na edição)
   useEffect(() => {
@@ -243,7 +211,14 @@ export function Purchases() {
       <SectionHeader
         title="Compras"
         subtitle="Registre compras e mantenha o estoque atualizado"
-        action={<Button onClick={() => setModal(true)}><FontAwesomeIcon icon={faPlus} style={{ height: "1rem" }} /> Nova compra</Button>}
+        action={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImporting(true)}>
+              <FontAwesomeIcon icon={faReceipt} style={{ height: "1rem" }} /> Importar NFC-e
+            </Button>
+            <Button onClick={() => setModal(true)}><FontAwesomeIcon icon={faPlus} style={{ height: "1rem" }} /> Nova compra</Button>
+          </div>
+        }
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-2">
@@ -318,22 +293,32 @@ export function Purchases() {
           icon={faCartShopping}
           title="Nenhuma compra encontrada"
           message="Registre sua primeira compra para alimentar o inventário e o histórico de preços."
-          action={<Button onClick={() => setModal(true)}><FontAwesomeIcon icon={faPlus} style={{ height: "1rem" }} /> Nova compra</Button>}
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button variant="outline" onClick={() => setImporting(true)}><FontAwesomeIcon icon={faReceipt} style={{ height: "1rem" }} /> Importar NFC-e</Button>
+              <Button onClick={() => setModal(true)}><FontAwesomeIcon icon={faPlus} style={{ height: "1rem" }} /> Nova compra</Button>
+            </div>
+          }
         />
       ) : (
         <div className="space-y-3">
           {list.map((p) => (
-            <Card key={p.id} className="p-5">
+            <Card key={p.id} className={`scroll-mt-24 p-5 transition-shadow ${highlightId === p.id ? "ring-2 ring-stone-900 ring-offset-2" : ""}`}>
+              <span id={`compra-${p.id}`} />
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-stone-800">{p.store}</h3>
                     <Badge tone="neutral">{p.items.length} itens</Badge>
+                    {p.source === "nfce" && (
+                      <Badge tone="blue"><FontAwesomeIcon icon={faReceipt} style={{ height: "0.7rem" }} /> NFC-e</Badge>
+                    )}
                   </div>
                   <p className="mt-0.5 text-xs text-stone-400">{fmtDate(p.date)}{p.note ? ` · ${p.note}` : ""}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-semibold text-stone-900">{formatBRL(p.total)}</p>
+                  {p.discount > 0 && <p className="text-xs text-emerald-600">desconto de {formatBRL(p.discount)}</p>}
                   {p.memberPayments?.length > 0 ? (
                     <div className="mt-0.5 flex flex-wrap justify-end gap-x-2 gap-y-0.5">
                       {p.memberPayments.map((mp) => {
@@ -351,12 +336,22 @@ export function Purchases() {
               <div className="mt-4 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                 {p.items.map((it) => (
                   <div key={it.id} className="flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2 text-sm">
-                    <span className="text-stone-600">{it.name} <span className="text-stone-400">· {it.quantity}{it.unit}</span></span>
+                    <span className="text-stone-600" title={it.originalName ? `Na nota: ${it.originalName}` : undefined}>{it.name} <span className="text-stone-400">· {it.quantity}{it.unit}</span></span>
                     <span className="font-medium text-stone-700">{formatBRL(it.totalPrice)}</span>
                   </div>
                 ))}
               </div>
               <div className="mt-3 flex justify-end gap-2">
+                {p.nfceUrl && (
+                  <a
+                    href={p.nfceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:bg-stone-100"
+                  >
+                    <FontAwesomeIcon icon={faArrowUpRightFromSquare} style={{ height: "0.8rem" }} /> Ver nota
+                  </a>
+                )}
                 <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
                   <FontAwesomeIcon icon={faPencil} style={{ height: "0.875rem" }} /> Editar
                 </Button>
@@ -444,6 +439,8 @@ export function Purchases() {
           )}
         </div>
       </Modal>
+
+      <NfceImportModal open={importing} onClose={() => setImporting(false)} />
 
       <ConfirmDialog
         open={!!confirm}

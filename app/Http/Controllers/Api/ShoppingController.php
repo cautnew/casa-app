@@ -4,11 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
-use App\Models\Member;
 use App\Models\Purchase;
-use App\Models\PurchaseMemberPayment;
-use App\Models\PriceHistory;
 use App\Models\ShoppingListItem;
+use App\Services\PurchaseRecorder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -74,7 +72,7 @@ class ShoppingController extends Controller
         return response()->json($shopping);
     }
 
-    public function finalize(Request $request)
+    public function finalize(Request $request, PurchaseRecorder $recorder)
     {
         $data = $request->validate([
             'store'                      => 'required|string|max:150',
@@ -92,92 +90,35 @@ class ShoppingController extends Controller
             'memberPayments.*.amount'    => 'required|numeric|min:0',
         ]);
 
-        $memberCount = max(1, Member::count());
+        return DB::transaction(function () use ($data, $recorder) {
+            $items = array_map(fn ($i) => [
+                'name'        => $i['name'],
+                'category'    => $i['category'],
+                'quantity'    => $i['quantity'],
+                'unit'        => $i['unit'],
+                'unit_price'  => $i['unitPrice'],
+                'total_price' => round($i['quantity'] * $i['unitPrice'], 2),
+            ], $data['items']);
 
-        return DB::transaction(function () use ($data, $memberCount) {
-            $items = collect($data['items'])->map(fn ($i) => [
-                ...$i,
-                'totalPrice' => round($i['quantity'] * $i['unitPrice'], 2),
-            ]);
+            $purchase = $recorder->record(
+                [
+                    'date'   => $data['date'],
+                    'store'  => $data['store'],
+                    'note'   => 'Gerada a partir da lista de compras',
+                    'source' => Purchase::SOURCE_LIST,
+                ],
+                $items,
+                $data['memberPayments'] ?? [],
+            );
 
-            $total     = round($items->sum('totalPrice'), 2);
-            $perMember = round($total / $memberCount, 2);
-
-            $purchase = Purchase::create([
-                'date'       => $data['date'],
-                'store'      => $data['store'],
-                'note'       => 'Gerada a partir da lista de compras',
-                'total'      => $total,
-                'per_member' => $perMember,
-            ]);
-
-            foreach ($items as $i) {
-                $purchase->items()->create([
-                    'name'        => $i['name'],
-                    'category'    => $i['category'],
-                    'quantity'    => $i['quantity'],
-                    'unit'        => $i['unit'],
-                    'unit_price'  => $i['unitPrice'],
-                    'total_price' => $i['totalPrice'],
-                ]);
-
-                $this->upsertInventory($i, $data['date'], $data['store']);
-
-                if (! empty($i['sourceInventoryId'])) {
-                    InventoryItem::where('id', $i['sourceInventoryId'])
-                        ->update(['in_next_list' => false]);
-                }
+            $inventoryIds = collect($data['items'])->pluck('sourceInventoryId')->filter();
+            if ($inventoryIds->isNotEmpty()) {
+                InventoryItem::whereIn('id', $inventoryIds)->update(['in_next_list' => false]);
             }
 
-            foreach ($data['memberPayments'] ?? [] as $p) {
-                PurchaseMemberPayment::create([
-                    'purchase_id' => $purchase->id,
-                    'member_id'   => $p['memberId'],
-                    'amount'      => round($p['amount'], 2),
-                ]);
-            }
-
-            $ids = collect($data['items'])->pluck('id');
-            ShoppingListItem::whereIn('id', $ids)->delete();
+            ShoppingListItem::whereIn('id', collect($data['items'])->pluck('id'))->delete();
 
             return response()->json($purchase->load('items', 'memberPayments'), 201);
         });
-    }
-
-    private function upsertInventory(array $item, string $date, string $store): void
-    {
-        $normName = mb_strtolower(trim($item['name']));
-        $unit     = $item['unit'];
-
-        $inv = InventoryItem::all()->first(
-            fn ($i) => mb_strtolower(trim($i->name)) === $normName && $i->unit === $unit
-        );
-
-        if ($inv === null) {
-            $inv = InventoryItem::create([
-                'name'         => $item['name'],
-                'category'     => $item['category'],
-                'quantity'     => $item['quantity'],
-                'unit'         => $unit,
-                'min_stock'    => max(1, round($item['quantity'] * 0.3)),
-                'in_next_list' => false,
-                'last_price'   => $item['unitPrice'],
-                'avg_price'    => $item['unitPrice'],
-            ]);
-        } else {
-            $inv->quantity += $item['quantity'];
-        }
-
-        PriceHistory::create([
-            'inventory_item_id' => $inv->id,
-            'date'              => $date,
-            'price'             => $item['unitPrice'],
-            'store'             => $store,
-        ]);
-
-        $avg = PriceHistory::where('inventory_item_id', $inv->id)->avg('price');
-        $inv->last_price = $item['unitPrice'];
-        $inv->avg_price  = round($avg, 2);
-        $inv->save();
     }
 }

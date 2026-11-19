@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use App\Services\Nfce\NfceException;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -19,4 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+
+        // Erros esperados da importação de NFC-e: código estável + mensagem amigável.
+        $exceptions->render(fn (NfceException $e) => response()->json($e->toArray(), $e->status()));
+        $exceptions->dontReport(NfceException::class);
     })->create();

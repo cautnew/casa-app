@@ -105,7 +105,7 @@ export function StoreProvider({ children }) {
   }, [reload]);
 
   return (
-    <StoreContext.Provider value={{ state, loading, error, dispatch }}>
+    <StoreContext.Provider value={{ state, loading, error, dispatch, reload }}>
       {children}
     </StoreContext.Provider>
   );

@@ -3,8 +3,11 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faXmark } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "./Button.jsx";
 
-/** Modal acessível: fecha com Escape, clique no backdrop e botão X. */
-export function Modal({ open, onClose, title, children, footer, wide }) {
+/**
+ * Modal acessível: fecha com Escape, clique no backdrop e botão X.
+ * stickyFooter mantém as ações visíveis ao rolar conteúdos longos (útil no celular).
+ */
+export function Modal({ open, onClose, title, children, footer, wide, stickyFooter }) {
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
     if (open) document.addEventListener("keydown", onKey);
@@ -31,7 +34,14 @@ export function Modal({ open, onClose, title, children, footer, wide }) {
           </Button>
         </div>
         {children}
-        {footer && <div className="mt-6 flex justify-end gap-2">{footer}</div>}
+        {footer && (
+          <div className={stickyFooter
+            ? "sticky bottom-0 -mx-6 -mb-6 mt-6 flex justify-end gap-2 rounded-b-3xl border-t border-stone-100 bg-white px-6 py-4"
+            : "mt-6 flex justify-end gap-2"}
+          >
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

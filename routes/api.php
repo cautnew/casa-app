@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BillController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\MemberController;
+use App\Http\Controllers\Api\NfceController;
 use App\Http\Controllers\Api\PurchaseController;
 use App\Http\Controllers\Api\ShoppingController;
 use App\Http\Controllers\Api\StateController;
@@ -27,6 +28,13 @@ Route::middleware('web')->group(function () {
         Route::post('/purchases', [PurchaseController::class, 'store']);
         Route::put('/purchases/{purchase}', [PurchaseController::class, 'update']);
         Route::delete('/purchases/{purchase}', [PurchaseController::class, 'destroy']);
+
+        Route::middleware('throttle:30,1')->group(function () {
+            Route::post('/nfce/read', [NfceController::class, 'read']);
+            Route::post('/nfce/captcha/refresh', [NfceController::class, 'refreshCaptcha']);
+            Route::post('/nfce/captcha/submit', [NfceController::class, 'submitCaptcha']);
+        });
+        Route::post('/nfce/import', [NfceController::class, 'import']);
 
         Route::put('/inventory/{inventory}', [InventoryController::class, 'update']);
         Route::patch('/inventory/{inventory}/qty', [InventoryController::class, 'updateQty']);
