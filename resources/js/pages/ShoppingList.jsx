@@ -218,24 +218,28 @@ export function ShoppingList() {
 
 function ShoppingRow({ item, dispatch, done }) {
   const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(item.name);
   const [qty, setQty] = useState(String(item.desiredQty));
   const [unit, setUnit] = useState(item.unit);
 
   useEffect(() => {
     if (!editing) {
+      setName(item.name);
       setQty(String(item.desiredQty));
       setUnit(item.unit);
     }
-  }, [item.desiredQty, item.unit, editing]);
+  }, [item.name, item.desiredQty, item.unit, editing]);
 
   const save = () => {
     const q = +qty;
-    if (!q || q <= 0) return;
-    dispatch({ type: "EDIT_SHOPPING_ITEM", payload: { id: item.id, desiredQty: q, unit } });
+    const n = name.trim();
+    if (!n || !q || q <= 0) return;
+    dispatch({ type: "EDIT_SHOPPING_ITEM", payload: { id: item.id, name: n, desiredQty: q, unit } });
     setEditing(false);
   };
 
   const cancel = () => {
+    setName(item.name);
     setQty(String(item.desiredQty));
     setUnit(item.unit);
     setEditing(false);
@@ -244,11 +248,19 @@ function ShoppingRow({ item, dispatch, done }) {
   if (editing) {
     return (
       <div className="rounded-xl bg-stone-50 px-3 py-2.5">
-        <p className="mb-2 text-sm font-medium text-stone-700">{item.name}</p>
+        <div className="mb-2">
+          <label className="mb-0.5 block text-xs text-stone-400">Nome</label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); }}
+            autoFocus
+          />
+        </div>
         <div className="flex items-end gap-2">
           <div className="flex-1">
             <label className="mb-0.5 block text-xs text-stone-400">Qtd</label>
-            <Input type="number" min="0.001" step="0.001" value={qty} onChange={(e) => setQty(e.target.value)} autoFocus />
+            <Input type="number" min="0.001" step="0.001" value={qty} onChange={(e) => setQty(e.target.value)} />
           </div>
           <div className="flex-1">
             <label className="mb-0.5 block text-xs text-stone-400">Unidade</label>
